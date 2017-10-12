@@ -41,7 +41,14 @@ void bootloader_jump(void) {
 }
 #endif /* defined(KIIBOHD_BOOTLOADER) */
 
-#else /* neither STM32 nor KINETIS */
+#elif defined(NUC122) /* defined(KL2x) || defined(K20x) */
+void bootloader_jump(void)
+{
+  UNLOCKREG();
+  FMC->ISPCON |= FMC_ISPCON_BS_Msk;
+  NVIC_SystemReset();
+}
+#else /* neither STM32, KINETIS nor NUC122 */
 __attribute__((weak))
 void bootloader_jump(void) {}
 #endif
