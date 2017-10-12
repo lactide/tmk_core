@@ -1054,7 +1054,11 @@ void send_remote_wakeup(USBDriver *usbp) {
   STM32_USB->CNTR |= CNTR_RESUME;
   chThdSleepMilliseconds(15);
   STM32_USB->CNTR &= ~CNTR_RESUME;
-#else /* STM32F0XX || STM32F1XX */
+#elif defined(NUC122) /* STM32F0XX || STM32F1XX */
+  USBD->ATTR |= USBD_ATTR_RWAKEUP_Msk;
+  chThdSleepMilliseconds(2);
+  USBD->ATTR &= ~USBD_ATTR_RWAKEUP_Msk;
+#else /* NUC122 */
 #warning Sending remote wakeup packet not implemented for your platform.
 #endif /* K20x || KL2x */
 }
