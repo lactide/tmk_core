@@ -1,11 +1,11 @@
-##############################################################################
+
 # Build global options
 # NOTE: Can be overridden externally.
 #
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -O2 -ggdb -fomit-frame-pointer -falign-functions=16 -std=gnu99 -DPROTOCOL_CHIBIOS
+  USE_OPT = -O2 -ggdb -fomit-frame-pointer -falign-functions=16 -std=c11 -DPROTOCOL_CHIBIOS
 endif
 
 # C specific options here (added to USE_OPT).
@@ -85,7 +85,10 @@ endif
 # Imported source files and paths
 CHIBIOS ?= $(TMK_DIR)/tool/chibios/ChibiOS
 CHIBIOS_CONTRIB ?= $(TMK_DIR)/tool/chibios/ChibiOS-Contrib
-# Startup files. Try a few different locations, for compability with old versions and 
+
+# Licensing files.
+include $(CHIBIOS)/os/license/license.mk
+# Startup files. Try a few different locations, for compability with old versions and
 # for things hardware in the contrib repository
 STARTUP_MK = $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC/mk/startup_$(MCU_STARTUP).mk
 ifeq ("$(wildcard $(STARTUP_MK))","")
@@ -122,6 +125,8 @@ ifeq ("$(wildcard $(PORT_V))","")
 PORT_V = $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC/mk/port_v$(ARMV)m.mk
 endif
 include $(PORT_V)
+# Auto-build files in ./source recursively.
+include $(CHIBIOS)/tools/mk/autobuild.mk
 # Other files (optional).
 include $(CHIBIOS)/os/hal/lib/streams/streams.mk
 
@@ -129,97 +134,40 @@ include $(CHIBIOS)/os/hal/lib/streams/streams.mk
 ifneq ("$(wildcard $(TARGET_DIR)/ld/$(MCU_LDSCRIPT).ld)","")
 LDSCRIPT = $(TARGET_DIR)/ld/$(MCU_LDSCRIPT).ld
 else
-LDSCRIPT = $(STARTUPLD)/$(MCU_LDSCRIPT).ld
+LDSCRIPT = $(STARTUPLD_CONTRIB)/$(MCU_LDSCRIPT).ld
 endif
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
-CSRC = $(STARTUPSRC) \
-       $(KERNSRC) \
-       $(PORTSRC) \
-       $(OSALSRC) \
-       $(HALSRC) \
-       $(PLATFORMSRC) \
-       $(BOARDSRC) \
-       $(STREAMSSRC) \
+CSRC = $(ALLCSRC) \
        $(TMK_DIR)/protocol/chibios/usb_main.c \
        $(TMK_DIR)/protocol/chibios/main.c \
        $(SRC)
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
-CPPSRC =
+CPPSRC = $(ALLCPPSRC)
 
-# C sources to be compiled in ARM mode regardless of the global setting.
-# NOTE: Mixing ARM and THUMB mode enables the -mthumb-interwork compiler
-#       option that results in lower performance and larger code size.
-ACSRC =
+# List ASM source files here.
+ASMSRC = $(ALLASMSRC)
 
-# C++ sources to be compiled in ARM mode regardless of the global setting.
-# NOTE: Mixing ARM and THUMB mode enables the -mthumb-interwork compiler
-#       option that results in lower performance and larger code size.
-ACPPSRC =
+# List ASM with preprocessor source files here.
+ASMXSRC = $(ALLXASMSRC)
 
-# C sources to be compiled in THUMB mode regardless of the global setting.
-# NOTE: Mixing ARM and THUMB mode enables the -mthumb-interwork compiler
-#       option that results in lower performance and larger code size.
-TCSRC =
-
-# C sources to be compiled in THUMB mode regardless of the global setting.
-# NOTE: Mixing ARM and THUMB mode enables the -mthumb-interwork compiler
-#       option that results in lower performance and larger code size.
-TCPPSRC =
-
-# List ASM source files here
-ASMSRC =
-ASMXSRC = $(STARTUPASM) $(PORTASM) $(OSALASM)
-
-INCDIR = $(CHIBIOS)/os/license \
-         $(STARTUPINC) $(KERNINC) $(PORTINC) $(OSALINC) \
-         $(HALINC) $(PLATFORMINC) $(BOARDINC) $(TESTINC) \
-         $(STREAMSINC) $(CHIBIOS)/os/various \
+# Inclusion directories.
+INCDIR = $(CONFDIR) $(ALLINC) $(TESTINC) \
          $(TMK_DIR) $(COMMON_DIR) $(TMK_DIR)/protocol/chibios \
          $(TMK_DIR)/protocol $(TARGET_DIR)
 
-#
-# Project, sources and paths
-##############################################################################
-
-##############################################################################
-# Compiler settings
-#
-
-#TRGT = arm-elf-
-TRGT = arm-none-eabi-
-CC   = $(TRGT)gcc
-CPPC = $(TRGT)g++
-# Enable loading with g++ only if you need C++ runtime support.
-# NOTE: You can use C++ even without C++ support if you are careful. C++
-#       runtime support makes code size explode.
-LD   = $(TRGT)gcc
-#LD   = $(TRGT)g++
-CP   = $(TRGT)objcopy
-AS   = $(TRGT)gcc -x assembler-with-cpp
-AR   = $(TRGT)ar
-OD   = $(TRGT)objdump
-SZ   = $(TRGT)size -A
-HEX  = $(CP) -O ihex
-BIN  = $(CP) -O binary
-
-# ARM-specific options here
-AOPT =
-
-# THUMB-specific options here
-TOPT = -mthumb -DTHUMB
-
-# Define C warning options here
+# Define C warning options here.
 CWARN = -Wall -Wextra -Wundef -Wstrict-prototypes -Wno-missing-field-initializers
 
-# Define C++ warning options here
+# Define C++ warning options here.
 CPPWARN = -Wall -Wextra -Wundef
 
 #
-# Compiler settings
+#
+# Project, target, sources and paths
 ##############################################################################
 
 ##############################################################################
@@ -254,8 +202,6 @@ endif
 # End of user defines
 ##############################################################################
 
-RULESPATH = $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC
-ifeq ("$(wildcard $(RULESPATH)/rules.mk)","")
-RULESPATH = $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC
-endif
+RULESPATH = $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC/mk
+include $(RULESPATH)/arm-none-eabi.mk
 include $(RULESPATH)/rules.mk
