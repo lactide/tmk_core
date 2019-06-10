@@ -63,7 +63,10 @@ extern bool keyboard_nkro;
 #endif /* NKRO_ENABLE */
 
 report_keyboard_t keyboard_report_sent = {{0}};
-report_keyboard_t *keyboard_report_not_yet_sent = NULL;
+#define KBD_REPORT_QUEUE_LEN 8
+report_keyboard_t keyboard_report_queue[KBD_REPORT_QUEUE_LEN];
+uint8_t keyboard_report_queue_write;
+uint8_t keyboard_report_queue_read;
 #ifdef MOUSE_ENABLE
 report_mouse_t mouse_report_blank = {0};
 report_mouse_t *mouse_report_not_yet_sent = NULL;
@@ -1050,10 +1053,10 @@ void init_usb_driver(USBDriver *usbp) {
 
 /* keyboard IN callback hander (a kbd report has made it IN) */
 void kbd_in_cb(USBDriver *usbp, usbep_t ep) {
-  if (keyboard_report_not_yet_sent != NULL) {
+  if (keyboard_report_queue_read != keyboard_report_queue_write) {
     osalSysLockFromISR();
-    usbStartTransmitI(usbp, ep, (uint8_t *)keyboard_report_not_yet_sent, KBD_EPSIZE);
-    keyboard_report_not_yet_sent = NULL;
+    usbStartTransmitI(usbp, ep, (uint8_t *)&keyboard_report_queue[keyboard_report_queue_read], KBD_EPSIZE);
+    keyboard_report_queue_read = (keyboard_report_queue_read + 1) % KBD_REPORT_QUEUE_LEN;
     osalSysUnlockFromISR();
   }
 }
@@ -1061,10 +1064,10 @@ void kbd_in_cb(USBDriver *usbp, usbep_t ep) {
 #ifdef NKRO_ENABLE
 /* nkro IN callback hander (a nkro report has made it IN) */
 void nkro_in_cb(USBDriver *usbp, usbep_t ep) {
-  if (keyboard_report_not_yet_sent != NULL) {
+  if (keyboard_report_queue_read != keyboard_report_queue_write) {
     osalSysLockFromISR();
-    usbStartTransmitI(usbp, ep, (uint8_t *)keyboard_report_not_yet_sent, sizeof(report_keyboard_t));
-    keyboard_report_not_yet_sent = NULL;
+    usbStartTransmitI(usbp, ep, (uint8_t *)&keyboard_report_queue[keyboard_report_queue_read], sizeof(report_keyboard_t));
+    keyboard_report_queue_read = (keyboard_report_queue_read + 1) % KBD_REPORT_QUEUE_LEN;
     osalSysUnlockFromISR();
   }
 }
@@ -1128,7 +1131,8 @@ void send_keyboard(report_keyboard_t *report) {
     /* need to wait until the previous packet has made it through */
     /* save the pointer to the current report to send it later */
     if(usbGetTransmitStatusI(&USB_DRIVER, NKRO_ENDPOINT)) {
-      keyboard_report_not_yet_sent = report;
+      keyboard_report_queue[keyboard_report_queue_write] = *report;
+      keyboard_report_queue_write = (keyboard_report_queue_write + 1) % KBD_REPORT_QUEUE_LEN;
       osalSysUnlock();
       return;
     }
@@ -1139,7 +1143,8 @@ void send_keyboard(report_keyboard_t *report) {
     /* need to wait until the previous packet has made it through */
     /* save the pointer to the current report to send it later */
     if(usbGetTransmitStatusI(&USB_DRIVER, KBD_ENDPOINT)) {
-      keyboard_report_not_yet_sent = report;
+      keyboard_report_queue[keyboard_report_queue_write] = *report;
+      keyboard_report_queue_write = (keyboard_report_queue_write + 1) % KBD_REPORT_QUEUE_LEN;
       osalSysUnlock();
       return;
     }
